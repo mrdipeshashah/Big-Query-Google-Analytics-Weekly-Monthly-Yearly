@@ -90,7 +90,7 @@ SELECT
     WHEN s.hour BETWEEN '20' AND '23' THEN 'Evening'
     WHEN s.hour BETWEEN '00' AND '03' THEN 'Lates'
     WHEN s.hour BETWEEN '04' AND '05' THEN 'Early Risers'
-  END AS TimePart,
+  END AS DayPart,
   s.Hour,
   s.Sessions,
   ac.AddtoCarts, 
