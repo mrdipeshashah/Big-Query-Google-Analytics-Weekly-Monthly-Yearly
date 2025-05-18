@@ -81,7 +81,7 @@ SELECT
   SessionMonth AS Month,
   SessionYear AS Year,
   FORMAT_DATE('%W', PARSE_DATE("%Y%m%d", event_date)) AS WeekNoOfYear,
-  CONCAT(FORMAT_DATE('%w', PARSE_DATE("%Y%m%d", event_date)), ' - ', FORMAT_DATE('%A', PARSE_DATE("%Y%m%d", s.event_date))) AS DayofWeek,
+  FORMAT_DATE('%A', PARSE_DATE("%Y%m%d", s.event_date)) AS DayofWeek,
   CASE
     WHEN s.hour BETWEEN '06' AND '08' THEN 'Breakfast'
     WHEN s.hour BETWEEN '09' AND '11' THEN 'Morning'
