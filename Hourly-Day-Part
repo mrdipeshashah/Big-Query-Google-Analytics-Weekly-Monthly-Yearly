@@ -1,109 +1,42 @@
-
-DECLARE date1 STRING;
-DECLARE date2 STRING;
-SET date1 = '20250301';
-SET date2 = '20250301';
-
-WITH sessions AS (
-  SELECT
-    event_date, 
-    FORMAT_DATE('%B', PARSE_DATE("%Y%m%d", event_date)) AS SessionMonth,
-    EXTRACT(YEAR FROM PARSE_DATE("%Y%m%d", event_date)) AS SessionYear,
-    FORMAT("%02d", EXTRACT(HOUR FROM TIMESTAMP_MICROS(event_timestamp))) AS hour,
-    COUNT(params.value.int_value) AS Sessions
-  FROM
-    `enter.tablename_123456.events_*`,
-    UNNEST(event_params) AS params
-  WHERE
-    event_name = 'session_start'
-    AND _TABLE_SUFFIX BETWEEN date1 AND date2
-    AND params.key = 'ga_session_id'
-  GROUP BY 1,2,3,4
-),
-
-add_to_carts AS (
-  SELECT
-    event_date, 
-    FORMAT_DATE('%B', PARSE_DATE("%Y%m%d", event_date)) AS AddToCartMonth,
-    EXTRACT(YEAR FROM PARSE_DATE("%Y%m%d", event_date)) AS AddToCartYear,
-    FORMAT("%02d", EXTRACT(HOUR FROM TIMESTAMP_MICROS(event_timestamp))) AS hour, 
-    COUNT(DISTINCT params.value.int_value) AS AddtoCarts
-  FROM
-    `enter.tablename_123456.events_*`,
-    UNNEST(event_params) AS params,
-    UNNEST(items) AS items
-  WHERE
-    event_name = 'add_to_cart'
-    AND _TABLE_SUFFIX BETWEEN date1 AND date2
-    AND params.key = 'ga_session_id'
-  GROUP BY 1,2,3,4
-),
-
-view_item AS (
-  SELECT
-    event_date, 
-    FORMAT_DATE('%B', PARSE_DATE("%Y%m%d", event_date)) AS ViewItemMonth,
-    EXTRACT(YEAR FROM PARSE_DATE("%Y%m%d", event_date)) AS ViewItemYear,
-    FORMAT("%02d", EXTRACT(HOUR FROM TIMESTAMP_MICROS(event_timestamp))) AS hour,
-    COUNT(DISTINCT params.value.int_value) AS ViewItem
-  FROM
-    `enter.tablename_123456.events_*`,
-    UNNEST(event_params) AS params,
-    UNNEST(items) AS items
-  WHERE
-    event_name = 'view_item'
-    AND _TABLE_SUFFIX BETWEEN date1 AND date2
-    AND params.key = 'ga_session_id'
-  GROUP BY 1,2,3,4
-),
-
-purchase AS (
-  SELECT
-    event_date, 
-    FORMAT_DATE('%B', PARSE_DATE("%Y%m%d", event_date)) AS PurchaseMonth,
-    EXTRACT(YEAR FROM PARSE_DATE("%Y%m%d", event_date)) AS PurchaseYear,
-    FORMAT("%02d", EXTRACT(HOUR FROM TIMESTAMP_MICROS(event_timestamp))) AS hour,
-    i.item_revenue AS Revenue,
-    COUNT(DISTINCT params.value.int_value) AS Purchases
-  FROM
-    `enter.tablename_123456.events_*`,
-    UNNEST(event_params) AS params,
-    UNNEST(items) AS i
-  WHERE
-    event_name = 'purchase'
-    AND _TABLE_SUFFIX BETWEEN date1 AND date2
-    AND params.key = 'ga_session_id'
-  GROUP BY 1,2,3,4,5
+WITH base_data AS (
+    SELECT
+        PARSE_DATE('%Y%m%d', event_date) AS date,
+        TIMESTAMP_MICROS(event_timestamp) AS timestamp,
+        event_name,
+        event_timestamp,
+        EXTRACT(MONTH FROM PARSE_DATE('%Y%m%d', event_date)) AS month,
+        EXTRACT(YEAR FROM PARSE_DATE('%Y%m%d', event_date)) AS year,
+        EXTRACT(WEEK FROM PARSE_DATE('%Y%m%d', event_date)) AS week_no_of_year,
+        FORMAT_DATE('%A', PARSE_DATE("%Y%m%d", event_date)) AS day_of_week,
+        FORMAT("%02d",EXTRACT(HOUR FROM TIMESTAMP_MICROS(event_timestamp))) AS hour,
+        ecommerce.purchase_revenue AS revenue
+    FROM `enter.tablename_123456.events_*`
+    WHERE _TABLE_SUFFIX BETWEEN '20250101' AND '20250331'
 )
 
 SELECT
-  PARSE_DATE('%Y%m%d', event_date) AS Date,
-  SessionMonth AS Month,
-  SessionYear AS Year,
-  FORMAT_DATE('%W', PARSE_DATE("%Y%m%d", event_date)) AS WeekNoOfYear,
-  FORMAT_DATE('%A', PARSE_DATE("%Y%m%d", s.event_date)) AS DayofWeek,
-  CASE
-    WHEN s.hour BETWEEN '06' AND '08' THEN 'Breakfast'
-    WHEN s.hour BETWEEN '09' AND '11' THEN 'Morning'
-    WHEN s.hour BETWEEN '12' AND '13' THEN 'Lunchtime'
-    WHEN s.hour BETWEEN '14' AND '16' THEN 'Afternoon'
-    WHEN s.hour BETWEEN '17' AND '19' THEN 'Early Evening'
-    WHEN s.hour BETWEEN '20' AND '23' THEN 'Evening'
-    WHEN s.hour BETWEEN '00' AND '03' THEN 'Lates'
-    WHEN s.hour BETWEEN '04' AND '05' THEN 'Early Risers'
-  END AS DayPart,
-  s.Hour,
-  s.Sessions,
-  ac.AddtoCarts, 
-  vi.ViewItem,
-  o.Purchases,
-  o.Revenue
-FROM 
-  sessions AS s
-LEFT JOIN 
-  add_to_carts AS ac USING (event_date, hour)
-LEFT JOIN 
-  view_item AS vi USING (event_date, hour)
-LEFT JOIN 
-  purchase AS o USING (event_date, hour)
-ORDER BY DayofWeek, s.hour;
+    date,
+    -- timestamp,
+    month,
+    year,
+    week_no_of_year,
+    day_of_week,
+    CASE
+        WHEN hour BETWEEN '00' AND '03' THEN 'Lates'
+        WHEN hour BETWEEN '04' AND '05' THEN 'Early Risers'
+        WHEN hour BETWEEN '06' AND '08' THEN 'Breakfast'
+        WHEN hour BETWEEN '09' AND '11' THEN 'Morning'
+        WHEN hour BETWEEN '12' AND '13' THEN 'Lunchtime'
+        WHEN hour BETWEEN '14' AND '16' THEN 'Afternoon'
+        WHEN hour BETWEEN '17' AND '19' THEN 'Early Evening'
+        WHEN hour BETWEEN '20' AND '23' THEN 'Evening'
+    END AS day_part,
+    hour,
+    COUNTIF(event_name = 'session_start') AS sessions,
+    COUNTIF(event_name = 'add_to_cart') AS adds_to_cart,
+    COUNTIF(event_name = 'view_item') AS views,
+    COUNTIF(event_name = 'purchase') AS purchases,
+    SUM(IF(event_name = 'purchase', revenue, 0)) AS total_revenue
+FROM base_data
+GROUP BY 1,2,3,4,5,6,7
+ORDER BY 8 DESC
